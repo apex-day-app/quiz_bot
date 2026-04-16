@@ -1,26 +1,24 @@
 import asyncio
-import os
+import logging
+from telegram import Update
+from telegram.ext import Application, CommandHandler, ContextTypes
 from telethon import TelegramClient
-from telegram import Bot
-from telegram.ext import CommandHandler, Application
+
+# लॉगिंग सेट करें
+logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 # ========================================
-# 🔐 Environment Variables
+# 🔐 आपकी जानकारी
 API_ID = 35089639
 API_HASH = '0c46a9a35e7db749b8a9b87b0bdb0aec'
-BOT_TOKEN = os.getenv('BOT_TOKEN')  # Railway से लेगा
+BOT_TOKEN = '8624071296:AAEfKOdlA_w884R45O0EVGYS7hHM68-HH_g'
 CHANNEL = 'ssc_crack_gk'
-
-# Telegram User ID (जहाँ बॉट रिप्लाई भेजेगा)
 YOUR_USER_ID = 6362212726
-
 # ========================================
 
-# Telethon Client (तुम्हारे यूजर अकाउंट से)
+# Telethon Client
 telethon_client = TelegramClient('bot_session', API_ID, API_HASH)
-
-# Bot
-bot = Bot(BOT_TOKEN)
 
 async def get_all_polls():
     """चैनल के सभी पोल्स को फॉर्मेट में बदलो"""
@@ -55,25 +53,41 @@ async def get_all_polls():
     
     return all_polls, count
 
-async def start_command(update, context):
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("🤖 **Quiz Bot Active!**\n\nSend /getpolls to get all quizzes from your channel.")
 
-async def get_polls_command(update, context):
+async def getpolls(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("📡 Fetching polls from your channel... Please wait.")
-    polls, total = await get_all_polls()
-    if polls:
-        for poll in polls:
-            await update.message.reply_text(poll)
-        await update.message.reply_text(f"✅ **Total polls found: {total}**")
-    else:
-        await update.message.reply_text("❌ No polls found in your channel.")
+    try:
+        polls, total = await get_all_polls()
+        if polls:
+            for poll in polls[:10]:
+                await update.message.reply_text(poll)
+            await update.message.reply_text(f"✅ **Total polls found: {total}**")
+        else:
+            await update.message.reply_text("❌ No polls found in your channel.")
+    except Exception as e:
+        await update.message.reply_text(f"❌ Error: {str(e)[:100]}")
 
-def main():
-    app = Application.builder().token(BOT_TOKEN).build()
-    app.add_handler(CommandHandler("start", start_command))
-    app.add_handler(CommandHandler("getpolls", get_polls_command))
-    print("🤖 Bot is running...")
-    app.run_polling()
+async def run_bot():
+    # Bot Application
+    application = Application.builder().token(BOT_TOKEN).build()
+    application.add_handler(CommandHandler("start", start))
+    application.add_handler(CommandHandler("getpolls", getpolls))
+    
+    # Telethon start
+    await telethon_client.start()
+    logger.info("Telethon client started!")
+    
+    # Bot start
+    await application.initialize()
+    await application.start()
+    await application.updater.start_polling()
+    logger.info("Bot is running! Send /getpolls on Telegram.")
+    
+    # Keep running
+    while True:
+        await asyncio.sleep(3600)
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(run_bot())
