@@ -1,24 +1,34 @@
-from telethon import TelegramClient
 import asyncio
+import os
+from telethon import TelegramClient
+from telegram import Bot
+from telegram.ext import CommandHandler, Application
 
-# 🔐 आपकी API जानकारी
-api_id = 35089639
-api_hash = '0c46a9a35e7db749b8a9b87b0bdb0aec'
-
-# 📢 आपका चैनल (बिना @ के)
+# ========================================
+# 🔐 Environment Variables
+API_ID = 35089639
+API_HASH = '0c46a9a35e7db749b8a9b87b0bdb0aec'
+BOT_TOKEN = os.getenv('BOT_TOKEN')  # Railway से लेगा
 CHANNEL = 'ssc_crack_gk'
 
-# आपका Telegram User ID
+# Telegram User ID (जहाँ बॉट रिप्लाई भेजेगा)
 YOUR_USER_ID = 6362212726
 
-client = TelegramClient('bot_session', api_id, api_hash)
+# ========================================
+
+# Telethon Client (तुम्हारे यूजर अकाउंट से)
+telethon_client = TelegramClient('bot_session', API_ID, API_HASH)
+
+# Bot
+bot = Bot(BOT_TOKEN)
 
 async def get_all_polls():
     """चैनल के सभी पोल्स को फॉर्मेट में बदलो"""
+    await telethon_client.start()
     all_polls = []
     count = 0
     
-    async for msg in client.iter_messages(CHANNEL, limit=100):
+    async for msg in telethon_client.iter_messages(CHANNEL, limit=100):
         if msg.poll:
             count += 1
             if hasattr(msg.poll, 'poll'):
@@ -45,23 +55,25 @@ async def get_all_polls():
     
     return all_polls, count
 
-async def send_to_me(message):
-    await client.send_message(YOUR_USER_ID, message)
+async def start_command(update, context):
+    await update.message.reply_text("🤖 **Quiz Bot Active!**\n\nSend /getpolls to get all quizzes from your channel.")
 
-async def main():
-    await client.start()
-    print("✅ Login successful!")
-    await send_to_me("🤖 Bot Active! Send /getpolls")
-    
-    @client.on(events.NewMessage)
-    async def handle_message(event):
-        if event.sender_id == YOUR_USER_ID and event.message.text == '/getpolls':
-            await send_to_me("📡 Fetching polls...")
-            polls, total = await get_all_polls()
-            for p in polls:
-                await send_to_me(p)
-            await send_to_me(f"✅ Total polls: {total}")
-    
-    await client.run_until_disconnected()
+async def get_polls_command(update, context):
+    await update.message.reply_text("📡 Fetching polls from your channel... Please wait.")
+    polls, total = await get_all_polls()
+    if polls:
+        for poll in polls:
+            await update.message.reply_text(poll)
+        await update.message.reply_text(f"✅ **Total polls found: {total}**")
+    else:
+        await update.message.reply_text("❌ No polls found in your channel.")
 
-asyncio.run(main())
+def main():
+    app = Application.builder().token(BOT_TOKEN).build()
+    app.add_handler(CommandHandler("start", start_command))
+    app.add_handler(CommandHandler("getpolls", get_polls_command))
+    print("🤖 Bot is running...")
+    app.run_polling()
+
+if __name__ == "__main__":
+    main()
